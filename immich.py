@@ -58,17 +58,26 @@ def search_random(person_ids: list[str], n: int = 1) -> requests.Response:
     )
 
 
-def download_asset(id: str) -> requests.Response:
+def download_original(id: str) -> requests.Response:
     """
     Download an asset by ID.
     """
     return requests.request(
         "GET",
         f"{URL}/api/assets/{id}/original",
-        headers={
-            "Accept": "application/octet-stream",
-            "x-api-key": API_KEY,
-        },
+        headers={"Accept": "application/octet-stream", "x-api-key": API_KEY},
+        data={},
+    )
+
+
+def download_thumbnail(id: str) -> requests.Response:
+    """
+    Download a preview of an asset by ID.
+    """
+    return requests.request(
+        "GET",
+        f"{URL}/api/assets/{id}/thumbnail?size=thumbnail",
+        headers={"Accept": "application/octet-stream", "x-api-key": API_KEY},
         data={},
     )
 
@@ -98,7 +107,7 @@ def get_immich(
     random_id = data["id"]
     file_format = data["originalFileName"].split(".")[-1].lower()
 
-    download_resp = download_asset(random_id)
+    download_resp = download_thumbnail(random_id)
 
     if file_format == "heic":
         heif_file = pillow_heif.open_heif(io.BytesIO(download_resp.content))
@@ -135,9 +144,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Immich forwarder")
-    parser.add_argument("--host", type=str, help="Host to bind to")
+    parser.add_argument("--host", type=str, help="Host to bind to", required=True)
     parser.add_argument("--port", type=int, default=5678, help="Port to bind to")
-    parser.add_argument("--immich_url", type=str, help="URL of the Immich server")
+    parser.add_argument("--immich-url", type=str, help="URL of the Immich server", required=True)
     args = parser.parse_args()
 
     URL = args.immich_url
