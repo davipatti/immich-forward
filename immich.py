@@ -10,7 +10,12 @@ import requests
 from fastapi import FastAPI, Query
 from fastapi.responses import Response
 from PIL import Image, ImageOps
-import pillow_heif  # pip install pillow-heif
+
+try:
+    import pillow_heif
+except ImportError:
+    pillow_heif = None
+    print("pillow-heif not installed, HEIC support will be disabled.")
 
 
 API_KEY = os.environ.get("IMMICH_API_KEY")
@@ -110,6 +115,13 @@ def get_immich(
     download_resp = download_thumbnail(random_id)
 
     if file_format == "heic":
+
+        if pillow_heif is None:
+            return Response(
+                content="pillow-heif not installed, HEIC support is disabled.",
+                media_type="text/plain",
+            )
+
         heif_file = pillow_heif.open_heif(io.BytesIO(download_resp.content))
         img = Image.frombytes(
             heif_file.mode,
@@ -146,7 +158,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Immich forwarder")
     parser.add_argument("--host", type=str, help="Host to bind to", required=True)
     parser.add_argument("--port", type=int, default=5678, help="Port to bind to")
-    parser.add_argument("--immich-url", type=str, help="URL of the Immich server", required=True)
+    parser.add_argument(
+        "--immich-url", type=str, help="URL of the Immich server", required=True
+    )
     args = parser.parse_args()
 
     URL = args.immich_url
