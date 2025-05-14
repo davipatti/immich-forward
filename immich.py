@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from ast import arg
-from typing import Annotated, Union
+from typing import Annotated, Union, Literal
 import io
 import json
 import os
@@ -10,12 +10,6 @@ import requests
 from fastapi import FastAPI, Query
 from fastapi.responses import Response
 from PIL import Image, ImageOps
-
-try:
-    import pillow_heif
-except ImportError:
-    pillow_heif = None
-    print("pillow-heif not installed, HEIC support will be disabled.")
 
 
 API_KEY = os.environ.get("IMMICH_API_KEY")
@@ -75,13 +69,13 @@ def download_original(id: str) -> requests.Response:
     )
 
 
-def download_thumbnail(id: str) -> requests.Response:
+def download(id: str, size: Literal["thumbnail", "preview"]) -> requests.Response:
     """
     Download a preview of an asset by ID.
     """
     return requests.request(
         "GET",
-        f"{URL}/api/assets/{id}/thumbnail?size=thumbnail",
+        f"{URL}/api/assets/{id}/thumbnail?size={size}",
         headers={"Accept": "application/octet-stream", "x-api-key": API_KEY},
         data={},
     )
@@ -110,29 +104,10 @@ def get_immich(
     random = search_random(person_ids=person_ids, n=1)
     data = random.json()[0]
     random_id = data["id"]
-    file_format = data["originalFileName"].split(".")[-1].lower()
 
-    download_resp = download_thumbnail(random_id)
+    download_resp = download(random_id, size="preview")
 
-    if file_format == "heic":
-
-        if pillow_heif is None:
-            return Response(
-                content="pillow-heif not installed, HEIC support is disabled.",
-                media_type="text/plain",
-            )
-
-        heif_file = pillow_heif.open_heif(io.BytesIO(download_resp.content))
-        img = Image.frombytes(
-            heif_file.mode,
-            heif_file.size,
-            heif_file.data,
-            "raw",
-            heif_file.mode,
-            heif_file.stride,
-        )
-    else:
-        img = Image.open(io.BytesIO(download_resp.content))
+    img = Image.open(io.BytesIO(download_resp.content))
 
     # Pad the image as requested
     padded = ImageOps.pad(img, (width, height))
@@ -152,11 +127,17 @@ def get_immich(
 
 
 if __name__ == "__main__":
-    import uvicorn
     import argparse
+    import uvicorn
 
     parser = argparse.ArgumentParser(description="Immich forwarder")
-    parser.add_argument("--host", type=str, help="Host to bind to", required=True)
+    parser.add_argument(
+        "--host",
+        type=str,
+        help="Host to bind to. Can pass multiple.",
+        required=True,
+        nargs="+",
+    )
     parser.add_argument("--port", type=int, default=5678, help="Port to bind to")
     parser.add_argument(
         "--immich-url", type=str, help="URL of the Immich server", required=True
